@@ -13,6 +13,14 @@ def main():
     parser.add_argument("url",
                         help="The base URL of the API you want to test",
                         type=str)
+    parser.add_argument("-a", "--auth",
+                        metavar="",
+                        help="Specifies a list of endpoints that provide\
+                        authorization credentials. These will be called first\
+                        to generate access tokens for relevant endpoints.",
+                        action="append",
+                        dest="auth",
+                        type=str)
     parser.add_argument("-p", "--parameters",
                         metavar="",
                         help="Specifies the JSON file containing dummy\
@@ -33,14 +41,11 @@ def main():
         return
 
 # ----------------------------------------------------------------------
-
     sanitised_url = args.url.replace("https://", "").replace("/", "")
     version = "-v" + str(args.version)
-    format = ".json"
 
     with requests.get(args.url + "/v" + str(args.version) + "/doc.json") as url:
         doc_file = url.json()
-
 
     def GetParametersForEndpoint(requestedEndpoint):
         if args.parameters is not None:
@@ -59,19 +64,32 @@ def main():
             return params[:-1]
         return params
 
-    list_endpoints = []
-    for endpoint, methods in doc_file["paths"].items():
-        for method, data in methods.items():
-            line = ",".join([endpoint, method, ParseParameters(endpoint)])
-            list_endpoints.append(line)
+    access_tokens = {}
+    def GetAccessTokens(auth_endpoints):
+        for auth in auth_endpoints:
+            with requests.post(args.url + auth, json=GetParametersForEndpoint(auth)) as response:
+                try:
+                    access_tokens[auth] = response.json()["access_token"]
+                except:
+                    print("Authorization failed for" + auth)
 
-    filename = os.path.join("."
-                            ,sanitised_url
-                            +version + ".csv")
+    GetAccessTokens(args.auth)
 
-    with open(filename, "w") as file:
-        for item in list_endpoints:
-            file.write(item + "\n")
+    print(access_tokens)
+
+    # list_endpoints = []
+    # for endpoint, methods in doc_file["paths"].items():
+    #     for method, data in methods.items():
+    #         line = ",".join([endpoint, method, ParseParameters(endpoint)])
+    #         list_endpoints.append(line)
+    #
+    # filename = os.path.join("."
+    #                         ,sanitised_url
+    #                         +version + ".csv")
+    #
+    # with open(filename, "w") as file:
+    #     for item in list_endpoints:
+    #         file.write(item + "\n")
 
 # ----------------------------------------------------------------------
 
